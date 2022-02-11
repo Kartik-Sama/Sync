@@ -1,0 +1,194 @@
+<html>
+
+<body onload="canvas.setup();globalInitialize();">
+    <canvas id="canvasArea" style="position: absolute; left: 0; top: 0; z-index: 0; width:100%;height:100%"></canvas>
+    <script src="./canvas.js"></script>
+</body>
+
+</html>
+<script>
+
+    // Declare all global variables here
+    var agentsCount = 100;
+    var sync = false;
+    var timeStep = 1;
+    var start = 0;
+    var shift = 0;
+    var state = 0;
+    var divider = [];
+    var width;
+    var height;
+    var agentsList = []; //array to hold obstracle objects
+    var globalCounter = new Date().getTime(); //variable that keeps chak of score, score = no. of obstracles passed.
+    var limit = Math.tanh(1);
+    var indCycle = 6;
+    var glowStart = 4;
+    var ticksRecall = 0;
+    var glowLimit = Math.tanh(glowStart/indCycle);
+    var prevCounter = Date.now();
+    var timeLapsed = 0;
+    // To initialize the height and width dependent variables adter canvas loads
+    function globalInitialize()
+    {
+        // alert(width)
+        width = canvas.width;
+        height = canvas.height;
+        for(var i = 0; i < agentsCount; i++)
+            agentsList.push(new fireFly((width-2)*Math.random(),(height-2)*Math.random(),1,indCycle*Math.random())); //10 depicts average speed
+    }
+
+    // Declare custom functions here
+    // To handle white rectangles of divider
+    class fireFly {
+        constructor(x_cord, y_cord, speed, timer){
+            this.x_cord = x_cord;
+            this.y_cord = y_cord;
+            this.speed = speed;
+            this.x_speed = this.speed*(Math.random()-0.5);
+            this.y_speed = this.speed*(Math.random()-0.5);
+            this.timer = timer;
+            this.glown = false;
+            if(agentsCount < 5)
+                this.baseRadius = 20;
+            else if(agentsCount < 30)
+                this.baseRadius = 10;
+            else if(agentsCount < 50)
+                this.baseRadius = 7;
+            else if(agentsCount < 70)
+                this.baseRadius = 5;
+            else if(agentsCount < 200)
+                this.baseRadius = 5;
+            else if(agentsCount < 1000)
+                this.baseRadius = 2;
+            else
+                this.baseRadius = 1;
+
+
+            this.radius = this.baseRadius;
+            this.glowColor = [0xcc,0xff,0x00];
+            this.baseColor = [0x30,0x30,0x30];
+            this.curColor = this.baseColor;
+        }
+        signalRecieve(){
+            if(this.timer == 0) 
+                return 0;
+            var water = Math.tanh(this.timer/indCycle);
+            water += 1/(10*agentsList.length);
+            water = Math.min(1,water);
+            this.timer = Math.min(indCycle*Math.atanh(water),indCycle); 
+            if(this.timer == indCycle) {
+                this.glow();
+                return 1;
+            }
+            return 0;
+        }
+        glow(){
+            if(Math.tanh(this.timer/indCycle) >= limit) {
+                    console.log("done",this.timer,(new Date().getTime()-globalCounter)/1000,timeStep);
+                    this.glown = false;
+                    this.timer = 0;
+                    return 1;   
+            }
+            if(this.glown == true) {
+                var peak = (indCycle-glowStart)/2;
+                var glowTimer = this.timer-glowStart;
+                var frac = (peak - Math.abs(glowTimer-peak))/peak;
+                frac = Math.min(frac,1);
+                frac = Math.max(frac,0);
+                var glowColor = this.glowColor;
+                var baseColor = this.baseColor;
+                this.curColor = [(1-frac)*baseColor[0]+frac*glowColor[0],(1-frac)*baseColor[1]+frac*glowColor[1],(1-frac)*baseColor[2]+frac*glowColor[2]];
+                this.radius = this.baseRadius+frac*0.5*this.baseRadius;
+            }
+            else if(Math.tanh(this.timer/indCycle) >= glowLimit) { //Essentially every six seconds
+                // alert((Date.now-this.globalCounter)*1e-3)
+                console.log(this.timer,(new Date().getTime()-globalCounter)/1000,timeStep);
+                this.glown = true;
+            }
+            else {
+                this.radius = this.baseRadius;
+                this.curColor = this.baseColor;
+                this.glown = false;
+            }
+            this.timer += 4*1e-3*timeStep;
+            return 0;
+        }
+        move(){
+            if(this.x_cord+this.radius >= width || this.x_cord-this.radius <= 0) {
+                if(this.x_speed > 0)
+                    this.x_speed = -1*this.speed*Math.random();
+                else
+                    this.x_speed = this.speed*Math.random();
+                this.x_cord = Math.min(this.x_cord, width-this.radius);
+                this.x_cord = Math.max(this.x_cord, this.radius);
+            }
+            if(this.y_cord+this.radius >= height || this.y_cord-this.radius <= 0) {
+                if(this.y_speed > 0)
+                    this.y_speed = -1*this.speed*Math.random();
+                else
+                    this.y_speed = this.speed*Math.random();
+                this.y_cord = Math.min(this.y_cord, height-this.radius);
+                this.y_cord = Math.max(this.y_cord, this.radius);
+            }
+            // canvas.setDrawMode("stroke");
+            // canvas.drawCircle(this.x_cord,this.y_cord,this.radius);
+            canvas.setDrawMode("fill");
+            var color = this.curColor;
+            canvas.setColor("rgb("+color[0].toString()+","+color[1].toString()+","+color[2].toString()+")")
+            canvas.drawCircle(this.x_cord,this.y_cord,this.radius);
+            this.x_cord += this.x_speed;
+            this.y_cord += this.y_speed;
+        }
+        TimeStep(){
+            return this.timer;
+        }
+    }
+    //Car instance to capsulate it's dimensions and methods.
+    function main() {
+        // globalCounter += Date.now();
+        canvas.clear();
+        canvas.setDrawMode("fill");
+        canvas.setColor("black");
+        canvas.drawRectangle(0,0,width,height);
+        var tickedAgents = [];
+        for(var i = 0; i < agentsCount; i++) {
+            if(agentsList[i].glow()) {
+                tickedAgents.push(i);
+            }
+            agentsList[i].move();
+        }
+        var ticks = tickedAgents.length;
+    
+        
+        if(ticks == agentsList.length && sync == false) {
+            window.alert("Sync emerged!");
+            sync = true;
+        }
+        canvas.setDrawMode("fill");
+        canvas.setColor("white");
+        canvas.drawText(0, 20, "Last unison:"+ticksRecall.toString(), fontSize = 20) // Draws <message> at (x, y)
+        // canvas.drawText(0, 40, "Time since unison:"+timeLapsed.toString().slice(0,4)+"sec", fontSize = 20) // Draws <message> at (x, y)
+        if(ticks > 0) {
+            timeLapsed = (globalCounter - prevCounter)*1e-3;
+            prevCounter = globalCounter;
+            globalCounter = Date.now();
+            ticksRecall = ticks;
+            var ind = 0;
+            var hits = ticks;
+            for(var i = 0; i < agentsList.length; i++) {
+                if(ind < ticks && i == tickedAgents[ind]) 
+                    ind += 1;
+                else {
+                    for(var j = 0; j < hits; j++) {
+                        agentsList[i].signalRecieve();
+                    }
+                }
+            }
+        }
+
+    }
+    // Override functions here; 
+    canvas.mainFunction = main;
+    //Main function is called every <timestep> milliseconds as per below timeStep
+    canvas.startMain(timeStep);
+</script>
